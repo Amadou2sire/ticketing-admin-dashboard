@@ -729,9 +729,9 @@ export function Report() {
                 </header>
 
                 <div className="mb-12 p-6 bg-slate-50 rounded-2xl border border-slate-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                    {/* <div className="absolute top-0 right-0 p-4 opacity-5">
                         <TicketIcon size={120} />
-                    </div>
+                    </div> */}
                     <p className="text-slate-700 leading-relaxed text-lg relative z-10">
                         Ce rapport est élaboré dans le cadre du contrat de run services du site afin de présenter les interventions réalisées durant la période du <strong>{new Date(startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</strong> au <strong>{new Date(endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</strong> et qui sont en définitif au nombre de <strong>{totalInterventions}</strong>.
                     </p>
