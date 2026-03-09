@@ -9,8 +9,8 @@ import { cn } from '../../utils/cn';
 export interface StatCardProps {
     title: string;
     value: string;
-    trend: string;
-    trendUp: boolean;
+    trend?: string;
+    trendUp?: boolean;
     icon: React.ReactNode;
     iconBg: string;
     progress?: number;
@@ -39,13 +39,15 @@ export function StatCard({
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", iconBg)}>
                     {icon}
                 </div>
-                <div className={cn(
-                    "flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-bold",
-                    trendUp ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
-                )}>
-                    {trendUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {trend}
-                </div>
+                {trend !== undefined && trendUp !== undefined && (
+                    <div className={cn(
+                        "flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-bold",
+                        trendUp ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                    )}>
+                        {trendUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                        {trend}
+                    </div>
+                )}
             </div>
 
             <div className="space-y-1">

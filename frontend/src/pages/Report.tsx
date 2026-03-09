@@ -896,8 +896,6 @@ export function Report() {
                     <StatCard
                         title="Total des tickets"
                         value={totalInterventions.toString()}
-                        trend="Live"
-                        trendUp={true}
                         icon={<TicketIcon className="text-blue-600" size={20} />}
                         iconBg="bg-blue-50"
                         progress={100}
@@ -906,8 +904,6 @@ export function Report() {
                     <StatCard
                         title="Dernière mise à jour"
                         value={new Date(reportTicket.updated_on).toLocaleDateString()}
-                        trend="Sync"
-                        trendUp={true}
                         icon={<Clock className="text-orange-600" size={20} />}
                         iconBg="bg-orange-50"
                         subtitle="Données en temps réel"
@@ -915,8 +911,6 @@ export function Report() {
                     <StatCard
                         title="Taux de clôture"
                         value={`${totalInterventions > 0 ? Math.round((getAggregatedStatusCount(['clot', 'resol']) / totalInterventions) * 100) : 0}%`}
-                        trend="+2%"
-                        trendUp={true}
                         icon={<Star className="text-yellow-500" size={20} />}
                         iconBg="bg-yellow-50"
                         rating={5}
