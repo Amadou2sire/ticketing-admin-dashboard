@@ -9,6 +9,7 @@ interface StatusDetailCardProps {
     themeColor: 'emerald' | 'blue' | 'rose' | 'orange' | 'indigo';
     summary?: React.ReactNode;
     colorMap?: Record<string, string>;
+    badge?: string;
 }
 
 export function StatusDetailCard({
@@ -18,7 +19,8 @@ export function StatusDetailCard({
     icon,
     themeColor,
     summary,
-    colorMap
+    colorMap,
+    badge
 }: StatusDetailCardProps) {
     const themes = {
         emerald: {
@@ -73,11 +75,18 @@ export function StatusDetailCard({
     );
 
     return (
-        <div className="border border-slate-200 rounded-3xl p-8 bg-white shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
-            <h3 className="text-xl font-black mb-6 text-slate-900 flex items-center gap-3">
-                <span className={cn("w-2.5 h-7 rounded-full", theme.barColor)} />
-                {title}
-            </h3>
+        <div className="border border-slate-200 rounded-3xl p-8 bg-white shadow-sm flex flex-col h-full hover:shadow-md transition-all duration-300">
+            <div className="flex justify-between items-start mb-6">
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                    <span className={cn("w-2.5 h-7 rounded-full", theme.barColor)} />
+                    {title}
+                </h3>
+                {badge && (
+                    <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse shadow-sm border", theme.iconBg, theme.textColor, theme.border)}>
+                        {badge}
+                    </span>
+                )}
+            </div>
 
             <div className={cn("p-6 rounded-2xl border mb-6 flex-1", theme.bg, theme.border)}>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center mb-10">
@@ -104,12 +113,14 @@ export function StatusDetailCard({
                             </ResponsiveContainer>
                         ) : (
                             <div className={cn("w-full h-full rounded-2xl flex items-center justify-center opacity-20", theme.iconBg, theme.textColor)}>
-                                {icon}
+                                <div className={cn(badge && "animate-bounce")}>
+                                    {icon}
+                                </div>
                             </div>
                         )}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-3xl font-black text-slate-900">{count}</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</span>
+                            <span className="text-3xl font-extrabold text-slate-900 drop-shadow-sm">{count}</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tickets</span>
                         </div>
                     </div>
 
@@ -132,16 +143,16 @@ export function StatusDetailCard({
                             <div key={item.name} className="group">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center gap-3 flex-1">
-                                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: itemColor }} />
-                                        <span className="text-sm font-black text-slate-700 group-hover:text-slate-900 transition-colors uppercase tracking-tight">{item.name}</span>
-                                        <div className="flex-1 border-b border-dashed border-slate-200 mx-2 opacity-50"></div>
+                                        <div className="w-3 h-3 rounded-full shadow-md" style={{ backgroundColor: itemColor }} />
+                                        <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors uppercase tracking-tight">{item.name}</span>
+                                        <div className="flex-1 border-b border-dashed border-slate-200 mx-2 opacity-30 group-hover:opacity-60 transition-opacity"></div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-lg font-black text-slate-900">{item.value.toString().padStart(2, '0')}</span>
-                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">{Math.round(percentage)}%</span>
+                                        <span className="text-lg font-black text-slate-900 drop-shadow-sm">{item.value.toString().padStart(2, '0')}</span>
+                                        <span className="text-[10px] font-bold text-slate-400 bg-white/80 px-2 py-0.5 rounded-md border border-slate-100 shadow-sm">{Math.round(percentage)}%</span>
                                     </div>
                                 </div>
-                                <div className="h-2 w-full bg-white/60 rounded-full overflow-hidden shadow-inner">
+                                <div className="h-2.5 w-full bg-white/60 rounded-full overflow-hidden shadow-inner border border-slate-100/50">
                                     <div
                                         className="h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
                                         style={{
@@ -162,7 +173,7 @@ export function StatusDetailCard({
             </div>
 
             {summary && (
-                <div className="mt-auto p-5 bg-slate-50 rounded-2xl border border-slate-200/60 shadow-inner">
+                <div className="mt-auto p-5 bg-slate-50/50 rounded-2xl border border-slate-200/40 shadow-inner backdrop-blur-sm">
                     <div className="text-slate-600 italic text-sm leading-relaxed font-semibold">
                         {summary}
                     </div>

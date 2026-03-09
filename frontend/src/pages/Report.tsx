@@ -270,9 +270,9 @@ export function Report() {
             pdf.setFillColor(245, 158, 11);        // slate-400 pour l'accent
             pdf.rect(0, 40, pw, 1.5, 'F');
 
-            // Logos dans la bande — taille agrandie
-            if (leftLogo) pdf.addImage(leftLogo, 'PNG', margin, 20, 60, 10, undefined, 'FAST');
-            if (rightLogo) pdf.addImage(rightLogo, 'PNG', pw - margin - 70, 20, 60, 10, undefined, 'FAST');
+            // Logos dans la bande — taille très réduite
+            if (leftLogo) pdf.addImage(leftLogo, 'PNG', margin, 16, 25, 6, undefined, 'FAST');
+            if (rightLogo) pdf.addImage(rightLogo, 'PNG', pw - margin - 25, 16, 25, 6, undefined, 'FAST');
 
             // ── Titre hors de la bande ──
             pdf.setFontSize(30);
@@ -330,7 +330,14 @@ export function Report() {
             await addPDFPage('report-summary-stats', "Vue d'ensemble de l'activité");
             await addPDFPage('report-charts-grid', "Analyse par Statut & Priorité");
             await addPDFPage('report-typology-section', "Répartition par Typologie");
-            await addPDFPage('report-details-grid', "Détail de l'état d'avancement");
+            // 5. Detail Blocks (Two by two on new pages)
+            const detailPages = ['report-details-page-1', 'report-details-page-2', 'report-details-page-3'];
+            for (let i = 0; i < detailPages.length; i++) {
+                const elementId = detailPages[i];
+                if (document.getElementById(elementId)) {
+                    await addPDFPage(elementId, `Détails de l'état d'avancement (Partie ${i + 1}/3)`);
+                }
+            }
 
             pdf.save(`Rapport_${reportTicket.project.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
 
@@ -824,60 +831,73 @@ export function Report() {
                     <TypologyChart data={typologyData} total={totalInterventions} />
                 </div>
 
-                <div id="report-details-grid" className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-4 rounded-3xl">
-                    <StatusDetailCard
-                        title="Tickets Clôturés"
-                        count={getAggregatedStatusCount(['clot', 'resol', 'ferm', 'termin', 'clos'])}
-                        typologyData={getTypologyByStatus(['clot', 'resol', 'ferm', 'termin', 'clos'])}
-                        icon={<Plus size={24} />}
-                        themeColor="emerald"
-                        colorMap={trackerColorMap}
-                        summary={topTypology ? (
-                            <>Les activités de <strong>{topTypology[0]}</strong> représentent la majeure partie des interventions clôturées.</>
-                        ) : (
-                            <>Aucune donnée d'intervention disponible.</>
-                        )}
-                    />
+                <div className="mt-8 space-y-8">
+                    {/* Page 1: Clôturés & Pris en charge */}
+                    <div id="report-details-page-1" className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <StatusDetailCard
+                            title="Tickets Clôturés"
+                            count={getAggregatedStatusCount(['clot', 'resol', 'ferm', 'termin', 'clos'])}
+                            typologyData={getTypologyByStatus(['clot', 'resol', 'ferm', 'termin', 'clos'])}
+                            icon={<Plus size={24} />}
+                            themeColor="emerald"
+                            colorMap={trackerColorMap}
+                            summary={topTypology ? (
+                                <>Les activités de <strong>{topTypology[0]}</strong> représentent la majeure partie des interventions clôturées.</>
+                            ) : (
+                                <>Aucune donnée d'intervention disponible.</>
+                            )}
+                        />
 
-                    <StatusDetailCard
-                        title="Tickets Pris en charge"
-                        count={getAggregatedStatusCount(['pris', 'cours'])}
-                        typologyData={getTypologyByStatus(['pris', 'cours'])}
-                        icon={<Clock size={24} />}
-                        themeColor="blue"
-                        colorMap={trackerColorMap}
-                        summary="Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours."
-                    />
+                        <StatusDetailCard
+                            title="Tickets Pris en charge"
+                            count={getAggregatedStatusCount(['pris', 'cours'])}
+                            typologyData={getTypologyByStatus(['pris', 'cours'])}
+                            icon={<Clock size={24} />}
+                            themeColor="blue"
+                            colorMap={trackerColorMap}
+                            summary="Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours."
+                        />
+                    </div>
 
-                    <StatusDetailCard
-                        title="Tickets En cours de traitement"
-                        count={getAggregatedStatusCount(['traitement'])}
-                        typologyData={getTypologyByStatus(['traitement'])}
-                        icon={<Clock size={24} />}
-                        themeColor="indigo"
-                        colorMap={trackerColorMap}
-                        summary="Ces tickets sont actuellement en phase active de réalisation technique."
-                    />
+                    {/* Page 2: Traitement & Bloqués */}
+                    <div id="report-details-page-2" className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <StatusDetailCard
+                            title="Tickets En cours de traitement"
+                            count={getAggregatedStatusCount(['traitement'])}
+                            typologyData={getTypologyByStatus(['traitement'])}
+                            icon={<Clock size={24} />}
+                            themeColor="indigo"
+                            colorMap={trackerColorMap}
+                            // badge="Action Prioritaire"
+                            summary="Ces tickets sont actuellement en phase active de réalisation technique et nécessitent un suivi rapproché."
+                        />
 
-                    <StatusDetailCard
-                        title="Tickets Bloqués"
-                        count={getAggregatedStatusCount(['bloq', 'attente'])}
-                        typologyData={getTypologyByStatus(['bloq', 'attente'])}
-                        icon={<AlertCircle size={24} />}
-                        themeColor="rose"
-                        colorMap={trackerColorMap}
-                        summary="Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement."
-                    />
+                        <StatusDetailCard
+                            title="Tickets Bloqués"
+                            count={getAggregatedStatusCount(['bloq', 'attente'])}
+                            typologyData={getTypologyByStatus(['bloq', 'attente'])}
+                            icon={<AlertCircle size={24} />}
+                            themeColor="rose"
+                            colorMap={trackerColorMap}
+                            summary="Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement."
+                        />
+                    </div>
 
-                    <StatusDetailCard
-                        title="Tickets Ouverts"
-                        count={getAggregatedStatusCount(['ouvert', 'nouveau'])}
-                        typologyData={getTypologyByStatus(['ouvert', 'nouveau'])}
-                        icon={<Plus size={24} />}
-                        themeColor="orange"
-                        colorMap={trackerColorMap}
-                        summary="Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge."
-                    />
+                    {/* Page 3: Ouverts */}
+                    <div id="report-details-page-3" className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <StatusDetailCard
+                            title="Tickets Ouverts"
+                            count={getAggregatedStatusCount(['ouvert', 'nouveau'])}
+                            typologyData={getTypologyByStatus(['ouvert', 'nouveau'])}
+                            icon={<Plus size={24} />}
+                            themeColor="orange"
+                            colorMap={trackerColorMap}
+                            summary="Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge."
+                        />
+                        <div className="hidden md:flex items-center justify-center border-2 border-dashed border-slate-100 rounded-3xl p-8 opacity-20">
+                            <p className="text-slate-400 font-bold italic tracking-widest text-sm uppercase">Espace réservé</p>
+                        </div>
+                    </div>
                 </div>
 
                 <footer className="mt-16 text-center text-slate-400 text-sm border-t border-slate-100 pt-8">
