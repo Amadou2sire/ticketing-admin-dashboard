@@ -908,13 +908,21 @@ export function Report() {
                         iconBg="bg-orange-50"
                         subtitle="Données en temps réel"
                     />
-                    <StatCard
-                        title="Taux de clôture"
-                        value={`${totalInterventions > 0 ? Math.round((getAggregatedStatusCount(['clot', 'resol']) / totalInterventions) * 100) : 0}%`}
-                        icon={<Star className="text-yellow-500" size={20} />}
-                        iconBg="bg-yellow-50"
-                        rating={5}
-                    />
+                    {(() => {
+                        const closureCount = getAggregatedStatusCount(['clot', 'resol']);
+                        const closurePercentage = totalInterventions > 0 ? Math.round((closureCount / totalInterventions) * 100) : 0;
+                        const ratingValue = Math.max(1, Math.ceil(closurePercentage / 20));
+
+                        return (
+                            <StatCard
+                                title="Taux de clôture"
+                                value={`${closurePercentage}%`}
+                                icon={<Star className="text-yellow-500" size={20} />}
+                                iconBg="bg-yellow-50"
+                                rating={ratingValue}
+                            />
+                        );
+                    })()}
                     <StatCard
                         title="Charge de Travail Active"
                         value={getAggregatedStatusCount(['pris', 'cours', 'traitement', 'test', 'validation', 'bloq', 'attente', 'ouvert', 'nouveau']).toString()}
