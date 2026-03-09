@@ -48,6 +48,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate  # Sur Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+uvicorn main:app --reload
 ```
 Créez un fichier `.env` dans le dossier `backend` :
 ```env

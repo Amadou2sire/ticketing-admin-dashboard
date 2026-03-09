@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Link,
     useParams
@@ -478,12 +478,27 @@ export function Report() {
 
                 if (currentProjectID) {
                     const dateFilter = `><${startDate}|${endDate}`;
-                    const issuesRes = await fetch(
-                        `/api/redmine/tickets?project_id=${currentProjectID}&limit=1000&created_on=${dateFilter}`
-                    );
-                    if (!issuesRes.ok) throw new Error('Impossible de charger les interventions du projet');
-                    const issuesData = await issuesRes.json();
-                    setAllIssues(issuesData.issues);
+                    let allFetchedIssues: RedmineIssue[] = [];
+                    let offset = 0;
+                    let hasMore = true;
+                    const limit = 100; // Utiliser une limite raisonnable par page
+
+                    while (hasMore) {
+                        const issuesRes = await fetch(
+                            `/api/redmine/tickets?project_id=${currentProjectID}&limit=${limit}&offset=${offset}&status_id=*&created_on=${dateFilter}`
+                        );
+                        if (!issuesRes.ok) throw new Error('Impossible de charger les interventions du projet');
+                        const issuesData = await issuesRes.json() as { issues: RedmineIssue[], total_count: number };
+
+                        allFetchedIssues = [...allFetchedIssues, ...issuesData.issues];
+                        offset += limit;
+
+                        if (allFetchedIssues.length >= issuesData.total_count || issuesData.issues.length === 0) {
+                            hasMore = false;
+                        }
+                    }
+
+                    setAllIssues(allFetchedIssues);
                 }
 
             } catch (err: any) {
@@ -496,6 +511,19 @@ export function Report() {
 
         if (id) loadReportData(allIssues.length > 0);
     }, [id, startDate, endDate]);
+
+    const trackerColorMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        const trackers = Array.from(new Set(allIssues.map(i => i.tracker.name))) as string[];
+        trackers.forEach(name => {
+            const low = name.toLowerCase();
+            map[name] = low.includes('web') ? '#6366f1' :
+                low.includes('bug') ? '#ef4444' :
+                    low.includes('reunion') ? '#f59e0b' :
+                        low.includes('doc') ? '#10b981' : '#8b5cf6';
+        });
+        return map;
+    }, [allIssues]);
 
     if (loading) {
         return (
@@ -522,20 +550,32 @@ export function Report() {
     }
 
     // Data processing
-    const totalInterventions = allIssues.length;
+    const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    const statusCounts = allIssues.reduce((acc: any, issue) => {
-        const name = issue.status.name;
-        acc[name] = (acc[name] || 0) + 1;
+    const statusCounts = allIssues.reduce((acc: Record<string, number>, issue) => {
+        const normName = normalize(issue.status.name);
+        acc[normName] = (acc[normName] || 0) + 1;
         return acc;
     }, {});
+
+    const getAggregatedStatusCount = (keywords: string[]) => {
+        const normalizedKeywords = keywords.map(normalize);
+        return Object.entries(statusCounts).reduce((total, [name, count]) => {
+            if (normalizedKeywords.some(kw => name.includes(kw))) {
+                return total + (count as number);
+            }
+            return total;
+        }, 0);
+    };
+
+    const totalInterventions = allIssues.length;
 
     const statusData = Object.entries(statusCounts).map(([name, count]) => ({
         name,
         count: count as number,
-        color: name.toLowerCase().includes('clot') || name.toLowerCase().includes('resolu') ? '#10b981' :
-            name.toLowerCase().includes('pris') || name.toLowerCase().includes('cours') ? '#3b82f6' :
-                name.toLowerCase().includes('bloq') ? '#ef4444' : '#f97316'
+        color: name.includes('clot') || name.includes('resol') ? '#10b981' :
+            name.includes('pris') || name.includes('cours') ? '#3b82f6' :
+                name.includes('bloq') ? '#ef4444' : '#f97316'
     }));
 
     const priorityCounts = allIssues.reduce((acc: any, issue) => {
@@ -548,12 +588,12 @@ export function Report() {
         const styles: Record<string, any> = {
             'Critique': { time: '1h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
             'Majeure': { time: '4h', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', bar: 'bg-orange-500' },
-            'Normale': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
-            'Mineure': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
-            'Urgent': { time: '2h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
             'Haute': { time: '4h', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', bar: 'bg-orange-500' },
+            'Normale': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
             'Moyenne': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
+            'Mineure': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
             'Basse': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
+            'Urgent': { time: '2h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
         };
         const style = styles[name] || { time: '--', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100', bar: 'bg-slate-500' };
         return {
@@ -564,7 +604,7 @@ export function Report() {
             ...style
         };
     }).sort((a, b) => {
-        const order: Record<string, number> = { 'Critique': 0, 'Urgent': 1, 'Majeure': 2, 'Haute': 3, 'Normale': 4, 'Moyenne': 5, 'Mineure': 6, 'Basse': 7 };
+        const order: Record<string, number> = { 'Critique': 0, 'Urgent': 1, 'Majeure': 2, 'Haute': 3, 'Normale': 4, 'Moyenne': 5, 'Haute ': 3, 'Normale ': 4, 'Mineure': 6, 'Basse': 7 };
         return (order[a.label] ?? 99) - (order[b.label] ?? 99);
     });
 
@@ -577,16 +617,18 @@ export function Report() {
     const typologyData = Object.entries(typologyCounts).map(([name, count]) => ({
         name,
         count: count as number,
-        color: name.toLowerCase().includes('web') ? '#6366f1' :
-            name.toLowerCase().includes('bug') ? '#ef4444' :
-                name.toLowerCase().includes('reunion') ? '#f59e0b' :
-                    name.toLowerCase().includes('doc') ? '#10b981' : '#8b5cf6'
+        color: trackerColorMap[name] || '#8b5cf6'
     }));
 
     const getTypologyByStatus = (statusKeywords: string[]) => {
-        const filtered = allIssues.filter(issue =>
-            statusKeywords.some(kw => issue.status.name.toLowerCase().includes(kw.toLowerCase()))
-        );
+        const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const normalizedKeywords = statusKeywords.map(normalize);
+
+        const filtered = allIssues.filter(issue => {
+            const statusName = normalize(issue.status.name);
+            return normalizedKeywords.some(kw => statusName.includes(kw));
+        });
+
         return filtered.reduce((acc: any, issue) => {
             const name = issue.tracker.name;
             acc[name] = (acc[name] || 0) + 1;
@@ -594,10 +636,10 @@ export function Report() {
         }, {});
     };
 
-    const closedTypology = getTypologyByStatus(['clot', 'resolu']);
-    const inProgressTypology = getTypologyByStatus(['pris']);
+    const closedTypology = getTypologyByStatus(['clot', 'resolu', 'ferm', 'termin']);
+    const inProgressTypology = getTypologyByStatus(['pris en charge', 'en cours']);
     const processingTypology = getTypologyByStatus(['traitement']);
-    const blockedTypology = getTypologyByStatus(['bloq']);
+    const blockedTypology = getTypologyByStatus(['bloq', 'attente']);
     const openTypology = getTypologyByStatus(['ouvert', 'nouveau']);
 
     const topTypology = Object.entries(typologyCounts).sort((a: any, b: any) => b[1] - a[1])[0];
@@ -729,9 +771,6 @@ export function Report() {
                 </header>
 
                 <div className="mb-12 p-6 bg-slate-50 rounded-2xl border border-slate-200 relative overflow-hidden">
-                    {/* <div className="absolute top-0 right-0 p-4 opacity-5">
-                        <TicketIcon size={120} />
-                    </div> */}
                     <p className="text-slate-700 leading-relaxed text-lg relative z-10">
                         Ce rapport est élaboré dans le cadre du contrat de run services du site afin de présenter les interventions réalisées durant la période du <strong>{new Date(startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</strong> au <strong>{new Date(endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</strong> et qui sont en définitif au nombre de <strong>{totalInterventions}</strong>.
                     </p>
@@ -759,7 +798,7 @@ export function Report() {
                     />
                     <StatCard
                         title="Taux de clôture"
-                        value={`${Math.round(((statusCounts['Clôturé'] || statusCounts['Résolu'] || 0) / totalInterventions) * 100)}%`}
+                        value={`${totalInterventions > 0 ? Math.round((getAggregatedStatusCount(['clot', 'resol']) / totalInterventions) * 100) : 0}%`}
                         trend="+2%"
                         trendUp={true}
                         icon={<Star className="text-yellow-500" size={20} />}
@@ -787,11 +826,12 @@ export function Report() {
 
                 <div id="report-details-grid" className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-4 rounded-3xl">
                     <StatusDetailCard
-                        title="Détails des Tickets Clôturés"
-                        count={statusCounts['Clôturé'] || statusCounts['Résolu'] || 0}
-                        typologyData={closedTypology}
+                        title="Tickets Clôturés"
+                        count={getAggregatedStatusCount(['clot', 'resol', 'ferm', 'termin', 'clos'])}
+                        typologyData={getTypologyByStatus(['clot', 'resol', 'ferm', 'termin', 'clos'])}
                         icon={<Plus size={24} />}
                         themeColor="emerald"
+                        colorMap={trackerColorMap}
                         summary={topTypology ? (
                             <>Les activités de <strong>{topTypology[0]}</strong> représentent la majeure partie des interventions clôturées.</>
                         ) : (
@@ -800,38 +840,42 @@ export function Report() {
                     />
 
                     <StatusDetailCard
-                        title="Détails des Tickets Pris en charge"
-                        count={statusCounts['Pris en charge'] || statusCounts['En cours'] || 0}
-                        typologyData={inProgressTypology}
+                        title="Tickets Pris en charge"
+                        count={getAggregatedStatusCount(['pris', 'cours'])}
+                        typologyData={getTypologyByStatus(['pris', 'cours'])}
                         icon={<Clock size={24} />}
                         themeColor="blue"
+                        colorMap={trackerColorMap}
                         summary="Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours."
                     />
 
                     <StatusDetailCard
-                        title="Détails des Tickets En cours de traitement"
-                        count={statusCounts['En cours de traitement'] || 0}
-                        typologyData={processingTypology}
+                        title="Tickets En cours de traitement"
+                        count={getAggregatedStatusCount(['traitement'])}
+                        typologyData={getTypologyByStatus(['traitement'])}
                         icon={<Clock size={24} />}
                         themeColor="indigo"
+                        colorMap={trackerColorMap}
                         summary="Ces tickets sont actuellement en phase active de réalisation technique."
                     />
 
                     <StatusDetailCard
-                        title="Détails des Tickets Bloqués"
-                        count={statusCounts['Bloqué'] || statusCounts['Bloqués'] || 0}
-                        typologyData={blockedTypology}
+                        title="Tickets Bloqués"
+                        count={getAggregatedStatusCount(['bloq', 'attente'])}
+                        typologyData={getTypologyByStatus(['bloq', 'attente'])}
                         icon={<AlertCircle size={24} />}
                         themeColor="rose"
+                        colorMap={trackerColorMap}
                         summary="Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement."
                     />
 
                     <StatusDetailCard
-                        title="Détails des Tickets Ouverts"
-                        count={statusCounts['Nouveau'] || statusCounts['Ouvert'] || statusCounts['Ouverts'] || 0}
-                        typologyData={openTypology}
+                        title="Tickets Ouverts"
+                        count={getAggregatedStatusCount(['ouvert', 'nouveau'])}
+                        typologyData={getTypologyByStatus(['ouvert', 'nouveau'])}
                         icon={<Plus size={24} />}
                         themeColor="orange"
+                        colorMap={trackerColorMap}
                         summary="Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge."
                     />
                 </div>

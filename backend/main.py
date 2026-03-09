@@ -37,13 +37,15 @@ async def get_tickets(
     status_id: Optional[str] = None,
     project_id: Optional[str] = None,
     created_on: Optional[str] = None,
-    limit: int = 1000
+    limit: int = 1000,
+    offset: int = 0
 ):
     if not REDMINE_API_KEY:
         raise HTTPException(status_code=500, detail="REDMINE_API_KEY is missing")
 
     params = {
         "limit": limit,
+        "offset": offset,
         "include": "journals,attachments"
     }
     
