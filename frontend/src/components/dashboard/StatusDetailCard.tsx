@@ -12,7 +12,7 @@ interface StatusDetailCardProps {
     badge?: string;
 }
 
-export function StatusDetailCard({
+export const StatusDetailCard: React.FC<StatusDetailCardProps> = ({
     title,
     count,
     typologyData,
@@ -21,7 +21,7 @@ export function StatusDetailCard({
     summary,
     colorMap,
     badge
-}: StatusDetailCardProps) {
+}) => {
     const themes = {
         emerald: {
             bg: 'bg-emerald-50',
@@ -69,7 +69,7 @@ export function StatusDetailCard({
 
     const sortedData = useMemo(() =>
         Object.entries(typologyData)
-            .map(([name, val]) => ({ name, value: val }))
+            .map(([name, value]) => ({ name, value: value as number }))
             .sort((a, b) => b.value - a.value),
         [typologyData]
     );
