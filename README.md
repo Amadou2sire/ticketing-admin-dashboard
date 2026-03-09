@@ -1,15 +1,15 @@
-# Ticketing Admin Dashboard 📊
+# Ticketing Admin Dashboard 
 
 Un tableau de bord moderne et dynamique pour la gestion et le reporting des tickets Redmine. Ce projet permet de visualiser l'état d'avancement des interventions, d'analyser les priorités et de générer des rapports d'activité professionnels.
 
-## 🚀 Fonctionnalités Clés
+## Fonctionnalités Clés
 
-### 🏠 Portail Home
+### Portail Home
 - **Vue d'Ensemble** : Visualisation des derniers tickets Redmine.
 - **Alertes d'Échéance** : Affichage de la date d'échéance avec un indicateur rouge si le ticket est en retard (hors tickets clôturés).
 - **Cartes de Statuts** : État d'avancement clair pour chaque ticket.
 
-### 📈 Module de Reporting Dynamique
+###  Module de Reporting Dynamique
 - **Période Personnalisable** : Sélection dynamique des dates (Du/Au) avec rafraîchissement automatique des données depuis Redmine.
 - **Analyse de Données** : 
   - Répartition par statut (Recharts).
@@ -17,13 +17,13 @@ Un tableau de bord moderne et dynamique pour la gestion et le reporting des tick
   - Typologie des interventions.
 - **Personnalisation** : Upload de logos personnalisés (Client / Interne) directement depuis l'interface pour les exports.
 
-### 📥 Multi-Export Export
+###  Multi-Export Export
 Exportation du rapport d'activité en un clic dans plusieurs formats professionnels :
 - 🟠 **PowerPoint (.pptx)** : Présentation 16:9 avec couverture et slides de données.
 - 🔴 **PDF Paysage (.pdf)** : Mise en page optimisée avec en-tête ardoise/orange.
 - 🔵 **Word Paysage (.docx)** : Document structuré pour l'édition.
 
-## 🛠️ Stack Technique
+##  Stack Technique
 
 - **Frontend** : [React](https://react.dev/) + [Vite](https://vitejs.dev/) + [TypeScript](https://www.typescriptlang.org/)
 - **Styling** : [Tailwind CSS](https://tailwindcss.com/) + [Lucide React](https://lucide.dev/)
@@ -35,7 +35,7 @@ Exportation du rapport d'activité en un clic dans plusieurs formats professionn
   - `docx` pour Microsoft Word.
   - `html-to-image` pour la capture des composants UI.
 
-## ⚙️ Installation
+##  Installation
 
 ### Pré-requis
 - Node.js (v18+)
@@ -63,7 +63,7 @@ npm install
 npm run dev
 ```
 
-## 📝 Utilisation
+##  Utilisation
 1. Accédez au dashboard sur `http://localhost:5173`.
 2. Cliquez sur un ticket pour générer son rapport d'activité.
 3. Ajustez les dates de reporting en haut de page.

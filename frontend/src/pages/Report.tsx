@@ -21,7 +21,7 @@ import {
     Presentation
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel, AlignmentType, PageOrientation, convertInchesToTwip } from 'docx';
+import { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel, AlignmentType, PageOrientation, convertInchesToTwip, Table, TableRow, TableCell, WidthType } from 'docx';
 import pptxgen from 'pptxgenjs';
 import { toPng } from 'html-to-image';
 import { RedmineIssue } from '../types/redmine';
@@ -30,6 +30,7 @@ import { StatusChart } from '../components/dashboard/StatusChart';
 import { PriorityGrid } from '../components/dashboard/PriorityGrid';
 import { TypologyChart } from '../components/dashboard/TypologyChart';
 import { StatusDetailCard } from '../components/dashboard/StatusDetailCard';
+import { cn } from '../utils/cn';
 
 export function Report() {
     const { id } = useParams();
@@ -186,7 +187,27 @@ export function Report() {
             await addContentSlide('report-summary-stats', "Vue d'ensemble de l'activité");
             await addContentSlide('report-charts-grid', "Analyse par Statut & Priorité");
             await addContentSlide('report-typology-section', "Répartition par Typologie");
-            await addContentSlide('report-details-grid', "Détail de l'état d'avancement");
+
+            // Details
+            const existingDetailPages: string[] = [];
+            let pNum = 1;
+            while (document.getElementById(`report-details-page-${pNum}`)) {
+                existingDetailPages.push(`report-details-page-${pNum}`);
+                pNum++;
+            }
+            for (let i = 0; i < existingDetailPages.length; i++) {
+                await addContentSlide(existingDetailPages[i], `Détails de l'état d'avancement (Partie ${i + 1}/${existingDetailPages.length})`);
+            }
+
+            // Annex
+            for (let gIdx = 0; gIdx < groupedAnnexIssues.length; gIdx++) {
+                const group = groupedAnnexIssues[gIdx];
+                let cIdx = 0;
+                while (document.getElementById(`export-annex-group-${gIdx}-chunk-${cIdx}`)) {
+                    await addContentSlide(`export-annex-group-${gIdx}-chunk-${cIdx}`, `Annexe : ${group.title} (${cIdx + 1})`);
+                    cIdx++;
+                }
+            }
 
             await pres.writeFile({
                 fileName: `Rapport_${reportTicket.project.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pptx`
@@ -330,12 +351,23 @@ export function Report() {
             await addPDFPage('report-summary-stats', "Vue d'ensemble de l'activité");
             await addPDFPage('report-charts-grid', "Analyse par Statut & Priorité");
             await addPDFPage('report-typology-section', "Répartition par Typologie");
-            // 5. Detail Blocks (Two by two on new pages)
-            const detailPages = ['report-details-page-1', 'report-details-page-2', 'report-details-page-3'];
-            for (let i = 0; i < detailPages.length; i++) {
-                const elementId = detailPages[i];
-                if (document.getElementById(elementId)) {
-                    await addPDFPage(elementId, `Détails de l'état d'avancement (Partie ${i + 1}/3)`);
+            // 5. Dynamic Detail Blocks (Two by two)
+            const existingDetailPages: string[] = [];
+            let pageNum = 1;
+            while (document.getElementById(`report-details-page-${pageNum}`)) {
+                existingDetailPages.push(`report-details-page-${pageNum}`);
+                pageNum++;
+            }
+
+            // 6. Annex Pages (Paginated by 7 rows for maximum readability)
+            for (let gIdx = 0; gIdx < groupedAnnexIssues.length; gIdx++) {
+                const group = groupedAnnexIssues[gIdx];
+                let chunkIdx = 0;
+                while (document.getElementById(`export-annex-group-${gIdx}-chunk-${chunkIdx}`)) {
+                    const elementId = `export-annex-group-${gIdx}-chunk-${chunkIdx}`;
+                    const pageTitle = `Annexe : ${group.title} (Partie ${chunkIdx + 1})`;
+                    await addPDFPage(elementId, pageTitle);
+                    chunkIdx++;
                 }
             }
 
@@ -436,6 +468,58 @@ export function Report() {
                         spacing: { after: 300 }
                     })
                 );
+            }
+
+            // Annex sections
+            if (groupedAnnexIssues.length > 0) {
+                sectionChildren.push(
+                    new Paragraph({
+                        children: [new TextRun({ text: "ANNEXE DÉTAILLÉE", bold: true, size: 40, color: '1e40af' })],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 800, after: 400 },
+                        pageBreakBefore: true
+                    })
+                );
+
+                for (let i = 0; i < groupedAnnexIssues.length; i++) {
+                    const group = groupedAnnexIssues[i];
+                    sectionChildren.push(
+                        new Paragraph({
+                            children: [new TextRun({ text: group.title, bold: true, size: 28, color: '1e293b' })],
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: { before: 400, after: 200 }
+                        })
+                    );
+
+                    // Create table for group
+                    const rows = group.issues.map(issue =>
+                        new TableRow({
+                            children: [
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `#${issue.id}`, bold: true, size: 18 })] })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: issue.tracker.name, size: 18 })] })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: issue.subject, size: 18 })] })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: issue.priority.name, size: 18 })] })] }),
+                            ]
+                        })
+                    );
+
+                    sectionChildren.push(
+                        new Table({
+                            width: { size: 100, type: WidthType.PERCENTAGE },
+                            rows: [
+                                new TableRow({
+                                    children: [
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "N°", bold: true, size: 18 })] })], shading: { fill: 'F1F5F9' } }),
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Tracker", bold: true, size: 18 })] })], shading: { fill: 'F1F5F9' } }),
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Sujet", bold: true, size: 18 })] })], shading: { fill: 'F1F5F9' } }),
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Priorité", bold: true, size: 18 })] })], shading: { fill: 'F1F5F9' } }),
+                                    ]
+                                }),
+                                ...rows
+                            ]
+                        })
+                    );
+                }
             }
 
             const doc = new Document({
@@ -645,6 +729,31 @@ export function Report() {
 
     const closedTypology = getTypologyByStatus(['clot', 'resolu', 'ferm', 'termin']);
     const inProgressTypology = getTypologyByStatus(['pris en charge', 'en cours']);
+
+    // Annex Data Processing
+    const getGroupedIssuesForAnnex = () => {
+        const groupsConfig = [
+            { title: "Tickets Clôturés", keywords: ['clot', 'resol', 'ferm', 'termin', 'clos'], color: 'text-emerald-600', bg: 'bg-emerald-500' },
+            { title: "Tickets Pris en charge", keywords: ['pris', 'cours'], color: 'text-blue-600', bg: 'bg-blue-500' },
+            { title: "En cours de traitement", keywords: ['traitement'], color: 'text-indigo-600', bg: 'bg-indigo-500' },
+            { title: "En cours de test", keywords: ['test', 'recette'], color: 'text-orange-600', bg: 'bg-orange-500' },
+            { title: "En cours de validation", keywords: ['validation', 'approbation'], color: 'text-emerald-600', bg: 'bg-emerald-500' },
+            { title: "Tickets Bloqués", keywords: ['bloq', 'attente'], color: 'text-rose-600', bg: 'bg-rose-500' },
+            { title: "Tickets Ouverts", keywords: ['ouvert', 'nouveau'], color: 'text-orange-600', bg: 'bg-orange-500' },
+            { title: "Tickets Annulés", keywords: ['annul', 'rejet', 'ignore'], color: 'text-rose-600', bg: 'bg-rose-500' },
+        ];
+
+        return groupsConfig.map(group => {
+            const normalizedKeywords = group.keywords.map(normalize);
+            const issues = allIssues.filter(issue => {
+                const statusName = normalize(issue.status.name);
+                return normalizedKeywords.some(kw => statusName.includes(kw));
+            }).sort((a, b) => b.id - a.id);
+            return { ...group, issues };
+        }).filter(group => group.issues.length > 0);
+    };
+
+    const groupedAnnexIssues = getGroupedIssuesForAnnex();
     const processingTypology = getTypologyByStatus(['traitement']);
     const blockedTypology = getTypologyByStatus(['bloq', 'attente']);
     const openTypology = getTypologyByStatus(['ouvert', 'nouveau']);
@@ -813,12 +922,13 @@ export function Report() {
                         rating={5}
                     />
                     <StatCard
-                        title="Priorité Haute"
-                        value={(priorityCounts['Urgent'] || priorityCounts['Haute'] || 0).toString()}
-                        trend="Alert"
+                        title="Charge de Travail Active"
+                        value={getAggregatedStatusCount(['pris', 'cours', 'traitement', 'test', 'validation', 'bloq', 'attente', 'ouvert', 'nouveau']).toString()}
+                        trend="En cours"
                         trendUp={false}
-                        icon={<Plus className="text-emerald-600" size={20} />}
-                        iconBg="bg-emerald-50"
+                        icon={<LayoutDashboard className="text-indigo-600" size={20} />}
+                        iconBg="bg-indigo-50"
+                        subtitle="Tickets hors clôturés/annulés"
                     />
                 </div>
 
@@ -831,73 +941,251 @@ export function Report() {
                     <TypologyChart data={typologyData} total={totalInterventions} />
                 </div>
 
+                {/* Dynamic Detail Blocks (Only if count > 0) */}
                 <div className="mt-8 space-y-8">
-                    {/* Page 1: Clôturés & Pris en charge */}
-                    <div id="report-details-page-1" className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                        <StatusDetailCard
-                            title="Tickets Clôturés"
-                            count={getAggregatedStatusCount(['clot', 'resol', 'ferm', 'termin', 'clos'])}
-                            typologyData={getTypologyByStatus(['clot', 'resol', 'ferm', 'termin', 'clos'])}
-                            icon={<Plus size={24} />}
-                            themeColor="emerald"
-                            colorMap={trackerColorMap}
-                            summary={topTypology ? (
-                                <>Les activités de <strong>{topTypology[0]}</strong> représentent la majeure partie des interventions clôturées.</>
-                            ) : (
-                                <>Aucune donnée d'intervention disponible.</>
-                            )}
-                        />
+                    {(() => {
+                        interface DetailBlockConfig {
+                            id: string;
+                            title: string;
+                            count: number;
+                            typologyKeywords: string[];
+                            icon: React.ReactNode;
+                            themeColor: 'emerald' | 'blue' | 'rose' | 'orange' | 'indigo';
+                            summary: React.ReactNode;
+                            badge?: string;
+                        }
 
-                        <StatusDetailCard
-                            title="Tickets Pris en charge"
-                            count={getAggregatedStatusCount(['pris', 'cours'])}
-                            typologyData={getTypologyByStatus(['pris', 'cours'])}
-                            icon={<Clock size={24} />}
-                            themeColor="blue"
-                            colorMap={trackerColorMap}
-                            summary="Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours."
-                        />
-                    </div>
+                        const detailBlocks: DetailBlockConfig[] = [
+                            {
+                                id: 'closed',
+                                title: "Tickets Clôturés",
+                                count: getAggregatedStatusCount(['clot', 'resol', 'ferm', 'termin', 'clos']),
+                                typologyKeywords: ['clot', 'resol', 'ferm', 'termin', 'clos'],
+                                icon: <Plus size={24} />,
+                                themeColor: 'emerald',
+                                summary: topTypology ? (
+                                    <>Les activités de <strong>{topTypology[0]}</strong> représentent la majeure partie des interventions clôturées.</>
+                                ) : (
+                                    <>Aucune donnée d'intervention disponible.</>
+                                )
+                            },
+                            {
+                                id: 'in_progress',
+                                title: "Tickets Pris en charge",
+                                count: getAggregatedStatusCount(['pris', 'cours']),
+                                typologyKeywords: ['pris', 'cours'],
+                                icon: <Clock size={24} />,
+                                themeColor: 'blue',
+                                summary: "Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours."
+                            },
+                            {
+                                id: 'processing',
+                                title: "Tickets En cours de traitement",
+                                count: getAggregatedStatusCount(['traitement']),
+                                typologyKeywords: ['traitement'],
+                                icon: <Clock size={24} />,
+                                themeColor: 'indigo',
+                                summary: "Ces tickets sont actuellement en phase active de réalisation technique et nécessitent un suivi rapproché."
+                            },
+                            {
+                                id: 'blocked',
+                                title: "Tickets Bloqués",
+                                count: getAggregatedStatusCount(['bloq', 'attente']),
+                                typologyKeywords: ['bloq', 'attente'],
+                                icon: <AlertCircle size={24} />,
+                                themeColor: 'rose',
+                                summary: "Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement."
+                            },
+                            {
+                                id: 'testing',
+                                title: "En cours de test",
+                                count: getAggregatedStatusCount(['test', 'recette']),
+                                typologyKeywords: ['test', 'recette'],
+                                icon: <Clock size={24} />,
+                                themeColor: 'orange',
+                                badge: "Phase de Recette",
+                                summary: "Les tickets dans cette phase subissent des tests de qualité avant livraison."
+                            },
+                            {
+                                id: 'validation',
+                                title: "En cours de validation",
+                                count: getAggregatedStatusCount(['validation', 'approbation']),
+                                typologyKeywords: ['validation', 'approbation'],
+                                icon: <Star size={24} />,
+                                themeColor: 'emerald',
+                                summary: "Tickets en attente de la validation finale par les parties prenantes."
+                            },
+                            {
+                                id: 'open',
+                                title: "Tickets Ouverts",
+                                count: getAggregatedStatusCount(['ouvert', 'nouveau']),
+                                typologyKeywords: ['ouvert', 'nouveau'],
+                                icon: <Plus size={24} />,
+                                themeColor: 'orange',
+                                summary: "Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge."
+                            },
+                            {
+                                id: 'cancelled',
+                                title: "Tickets Annulés",
+                                count: getAggregatedStatusCount(['annul', 'rejet', 'ignore']),
+                                typologyKeywords: ['annul', 'rejet', 'ignore'],
+                                icon: <AlertCircle size={24} />,
+                                themeColor: 'rose',
+                                summary: "Tickets qui ont été annulés ou rejetés pour diverses raisons."
+                            }
+                        ];
 
-                    {/* Page 2: Traitement & Bloqués */}
-                    <div id="report-details-page-2" className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                        <StatusDetailCard
-                            title="Tickets En cours de traitement"
-                            count={getAggregatedStatusCount(['traitement'])}
-                            typologyData={getTypologyByStatus(['traitement'])}
-                            icon={<Clock size={24} />}
-                            themeColor="indigo"
-                            colorMap={trackerColorMap}
-                            // badge="Action Prioritaire"
-                            summary="Ces tickets sont actuellement en phase active de réalisation technique et nécessitent un suivi rapproché."
-                        />
+                        const visibleBlocks = detailBlocks.filter(b => b.count > 0);
+                        const pages = [];
+                        for (let i = 0; i < visibleBlocks.length; i += 2) {
+                            pages.push(visibleBlocks.slice(i, i + 2));
+                        }
 
-                        <StatusDetailCard
-                            title="Tickets Bloqués"
-                            count={getAggregatedStatusCount(['bloq', 'attente'])}
-                            typologyData={getTypologyByStatus(['bloq', 'attente'])}
-                            icon={<AlertCircle size={24} />}
-                            themeColor="rose"
-                            colorMap={trackerColorMap}
-                            summary="Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement."
-                        />
-                    </div>
+                        return pages.map((pageBlocks, pageIdx) => (
+                            <div
+                                key={`page-${pageIdx}`}
+                                id={`report-details-page-${pageIdx + 1}`}
+                                className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
+                            >
+                                {pageBlocks.map(block => (
+                                    <StatusDetailCard
+                                        key={block.id}
+                                        title={block.title}
+                                        count={block.count}
+                                        typologyData={getTypologyByStatus(block.typologyKeywords)}
+                                        icon={block.icon}
+                                        themeColor={block.themeColor}
+                                        colorMap={trackerColorMap}
+                                        badge={block.badge}
+                                        summary={block.summary}
+                                    />
+                                ))}
+                                {pageBlocks.length === 1 && (
+                                    <div className="hidden md:flex items-center justify-center border-2 border-dashed border-slate-100 rounded-3xl p-8 opacity-20">
+                                        <p className="text-slate-400 font-bold italic tracking-widest text-sm uppercase">Espace réservé</p>
+                                    </div>
+                                )}
+                            </div>
+                        ));
+                    })()}
+                </div>
 
-                    {/* Page 3: Ouverts */}
-                    <div id="report-details-page-3" className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                        <StatusDetailCard
-                            title="Tickets Ouverts"
-                            count={getAggregatedStatusCount(['ouvert', 'nouveau'])}
-                            typologyData={getTypologyByStatus(['ouvert', 'nouveau'])}
-                            icon={<Plus size={24} />}
-                            themeColor="orange"
-                            colorMap={trackerColorMap}
-                            summary="Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge."
-                        />
-                        <div className="hidden md:flex items-center justify-center border-2 border-dashed border-slate-100 rounded-3xl p-8 opacity-20">
-                            <p className="text-slate-400 font-bold italic tracking-widest text-sm uppercase">Espace réservé</p>
+                {/* Web Annex Section (Scrollable and unified for UI) */}
+                <div id="report-annex-section" className="mt-20 pt-20 border-t-2 border-slate-100">
+                    <div className="flex items-center gap-6 mb-12">
+                        <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl">
+                            <Plus className="text-white" size={32} />
+                        </div>
+                        <div>
+                            <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Annexe Détaillée</h2>
+                            <p className="text-slate-500 font-medium italic text-lg">Liste exhaustive des interventions classées par état d'avancement.</p>
                         </div>
                     </div>
+
+                    <div className="space-y-16">
+                        {groupedAnnexIssues.map((group, gIdx) => (
+                            <div key={group.title} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="bg-slate-50/50 px-10 py-6 border-b border-slate-200 flex justify-between items-center">
+                                    <h3 className={cn("text-xl font-black uppercase tracking-tight flex items-center gap-4", group.color)}>
+                                        <span className={cn("w-3 h-8 rounded-full shadow-sm", group.bg)} />
+                                        {group.title}
+                                    </h3>
+                                    <span className="bg-white px-4 py-1.5 rounded-full text-xs font-black text-slate-500 border border-slate-200 shadow-sm">
+                                        {group.issues.length} {group.issues.length > 1 ? 'INTERVENTIONS' : 'INTERVENTION'}
+                                    </span>
+                                </div>
+                                <div className="max-h-[600px] overflow-y-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                                            <tr className="bg-slate-50/30 border-b border-slate-100">
+                                                <th className="px-10 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Réf.</th>
+                                                <th className="px-10 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Tracker</th>
+                                                <th className="px-10 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Sujet de l'intervention</th>
+                                                <th className="px-10 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Priorité</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {group.issues.map(issue => {
+                                                const prio = priorityData.find(p => p.label === issue.priority.name);
+                                                return (
+                                                    <tr key={issue.id} className="hover:bg-slate-50/50 transition-all duration-200 group text-sm">
+                                                        <td className="px-10 py-5 font-black text-slate-900 italic opacity-60">#{issue.id}</td>
+                                                        <td className="px-10 py-5">
+                                                            <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-slate-200" style={{ color: trackerColorMap[issue.tracker.name] || '#6366f1' }}>
+                                                                {issue.tracker.name}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-10 py-5 text-slate-700 font-semibold max-w-xl">
+                                                            <div className="line-clamp-2 break-words">{issue.subject}</div>
+                                                        </td>
+                                                        <td className="px-10 py-5 text-xs font-black uppercase">{issue.priority.name}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Hidden Export Pages (Paginated for PDF/PPTX capture) */}
+                <div className="absolute left-[-9999px] top-0 pointer-events-none overflow-hidden" style={{ width: '1200px' }}>
+                    {groupedAnnexIssues.map((group, gIdx) => {
+                        const chunks = [];
+                        for (let i = 0; i < group.issues.length; i += 7) {
+                            chunks.push(group.issues.slice(i, i + 7));
+                        }
+                        return chunks.map((chunk, cIdx) => (
+                            <div
+                                key={`export-annex-${gIdx}-${cIdx}`}
+                                id={`export-annex-group-${gIdx}-chunk-${cIdx}`}
+                                className="bg-white p-12 rounded-[2.5rem] border border-slate-200 mb-10 w-full"
+                            >
+                                <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-200">
+                                    <h3 className={cn("text-2xl font-black uppercase tracking-tight flex items-center gap-4", group.color)}>
+                                        <span className={cn("w-4 h-10 rounded-full shadow-sm", group.bg)} />
+                                        {group.title} {chunks.length > 1 ? `(${cIdx + 1}/${chunks.length})` : ''}
+                                    </h3>
+                                    <span className="text-slate-400 font-black text-sm uppercase italic">Document Annexe — {group.issues.length} {group.issues.length > 1 ? 'Items' : 'Item'}</span>
+                                </div>
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50/50">
+                                            <th className="px-8 py-5 text-[12px] font-black text-slate-400 uppercase tracking-widest">Réf.</th>
+                                            <th className="px-8 py-5 text-[12px] font-black text-slate-400 uppercase tracking-widest">Tracker</th>
+                                            <th className="px-8 py-5 text-[12px] font-black text-slate-400 uppercase tracking-widest w-[50%]">Sujet</th>
+                                            <th className="px-8 py-5 text-[12px] font-black text-slate-400 uppercase tracking-widest">Priorité</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {chunk.map(issue => {
+                                            const prio = priorityData.find(p => p.label === issue.priority.name);
+                                            return (
+                                                <tr key={issue.id}>
+                                                    <td className="px-8 py-6 font-black text-slate-900 italic text-base">#{issue.id}</td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="px-4 py-1.5 rounded-xl text-xs font-black border border-slate-200" style={{ color: trackerColorMap[issue.tracker.name] || '#6366f1' }}>
+                                                            {issue.tracker.name}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-slate-700 text-sm font-bold leading-tight w-[50%]">
+                                                        <div className="line-clamp-2 break-words">{issue.subject}</div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className={cn("px-4 py-2 rounded-full text-[11px] font-black uppercase border", prio?.bg || 'bg-slate-50', prio?.color || 'text-slate-600', prio?.border || 'border-slate-100')}>
+                                                            {issue.priority.name}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ));
+                    })}
                 </div>
 
                 <footer className="mt-16 text-center text-slate-400 text-sm border-t border-slate-100 pt-8">
