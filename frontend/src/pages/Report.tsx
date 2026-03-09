@@ -1073,9 +1073,9 @@ export function Report() {
                 {/* Web Annex Section (Scrollable and unified for UI) */}
                 <div id="report-annex-section" className="mt-20 pt-20 border-t-2 border-slate-100">
                     <div className="flex items-center gap-6 mb-12">
-                        <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl">
+                        {/* <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl">
                             <Plus className="text-white" size={32} />
-                        </div>
+                        </div> */}
                         <div>
                             <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Annexe Détaillée</h2>
                             <p className="text-slate-500 font-medium italic text-lg">Liste exhaustive des interventions classées par état d'avancement.</p>
