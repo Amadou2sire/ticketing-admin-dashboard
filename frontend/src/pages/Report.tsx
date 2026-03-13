@@ -616,6 +616,135 @@ export function Report() {
         return map;
     }, [allIssues]);
 
+    const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const statusCounts = useMemo(() => {
+        return allIssues.reduce((acc: Record<string, number>, issue) => {
+            const normName = normalize(issue.status.name);
+            acc[normName] = (acc[normName] || 0) + 1;
+            return acc;
+        }, {});
+    }, [allIssues]);
+
+    const getAggregatedStatusCount = (keywords: string[]) => {
+        const normalizedKeywords = keywords.map(normalize);
+        return Object.entries(statusCounts).reduce((total, [name, count]) => {
+            if (normalizedKeywords.some(kw => name.includes(kw))) {
+                return total + (count as number);
+            }
+            return total;
+        }, 0);
+    };
+
+    const totalInterventions = allIssues.length;
+
+    const statusData = useMemo(() => {
+        return Object.entries(statusCounts).map(([name, count]) => ({
+            name,
+            count: count as number,
+            color: name.includes('clot') || name.includes('resol') ? '#10b981' :
+                name.includes('pris') || name.includes('cours') ? '#3b82f6' :
+                    name.includes('bloq') ? '#ef4444' : '#f97316'
+        }));
+    }, [statusCounts]);
+
+    const priorityCounts = useMemo(() => {
+        return allIssues.reduce((acc: any, issue) => {
+            const name = issue.priority.name;
+            acc[name] = (acc[name] || 0) + 1;
+            return acc;
+        }, {});
+    }, [allIssues]);
+
+    const priorityData = useMemo(() => {
+        return Object.entries(priorityCounts).map(([name, count]) => {
+            const styles: Record<string, any> = {
+                'Critique': { time: '1h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
+                'Majeure': { time: '4h', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', bar: 'bg-orange-500' },
+                'Haute': { time: '4h', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', bar: 'bg-orange-500' },
+                'Normale': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
+                'Moyenne': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
+                'Mineure': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
+                'Basse': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
+                'Urgent': { time: '2h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
+            };
+            const style = styles[name] || { time: '--', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100', bar: 'bg-slate-500' };
+            return {
+                label: name,
+                time: style.time,
+                count: count as number,
+                total: totalInterventions,
+                ...style
+            };
+        }).sort((a, b) => {
+            const order: Record<string, number> = { 'Critique': 0, 'Urgent': 1, 'Majeure': 2, 'Haute': 3, 'Normale': 4, 'Moyenne': 5, 'Mineure': 6, 'Basse': 7 };
+            return (order[a.label] ?? 99) - (order[b.label] ?? 99);
+        });
+    }, [priorityCounts, totalInterventions]);
+
+    const typologyCounts = useMemo(() => {
+        return allIssues.reduce((acc: any, issue) => {
+            const name = issue.tracker.name;
+            acc[name] = (acc[name] || 0) + 1;
+            return acc;
+        }, {});
+    }, [allIssues]);
+
+    const typologyData = useMemo(() => {
+        return Object.entries(typologyCounts).map(([name, count]) => ({
+            name,
+            count: count as number,
+            color: trackerColorMap[name] || '#8b5cf6'
+        }));
+    }, [typologyCounts, trackerColorMap]);
+
+    const topTypology = useMemo(() => {
+        return Object.entries(typologyCounts).sort((a: any, b: any) => b[1] - a[1])[0];
+    }, [typologyCounts]);
+
+    const getTypologyByStatus = (statusKeywords: string[]) => {
+        const normalizedKeywords = statusKeywords.map(normalize);
+        const filtered = allIssues.filter(issue => {
+            const statusName = normalize(issue.status.name);
+            return normalizedKeywords.some(kw => statusName.includes(kw));
+        });
+        return filtered.reduce((acc: any, issue) => {
+            const name = issue.tracker.name;
+            acc[name] = (acc[name] || 0) + 1;
+            return acc;
+        }, {});
+    };
+
+    // Unified grouping logic (Exclusive matching)
+    const groupedIssues = useMemo(() => {
+        const groupsConfig = [
+            { id: 'closed', title: "Tickets Clôturés", keywords: ['clot', 'resol', 'ferm', 'termin', 'clos'], color: 'text-emerald-600', bg: 'bg-emerald-500', themeColor: 'emerald' as const, icon: <Plus size={24} />, summary: topTypology ? `Les activités de ${topTypology[0]} représentent la majeure partie des interventions clôturées.` : "Aucune donnée d'intervention disponible." },
+            { id: 'processing', title: "En cours de traitement", keywords: ['traitement'], color: 'text-indigo-600', bg: 'bg-indigo-500', themeColor: 'indigo' as const, icon: <Clock size={24} />, summary: "Ces tickets sont actuellement en phase active de réalisation technique et nécessitent un suivi rapproché." },
+            { id: 'in_progress', title: "Tickets Pris en charge", keywords: ['pris', 'cours'], color: 'text-blue-600', bg: 'bg-blue-500', themeColor: 'blue' as const, icon: <Clock size={24} />, summary: "Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours." },
+            { id: 'testing', title: "En cours de test", keywords: ['test', 'recette'], color: 'text-orange-600', bg: 'bg-orange-500', themeColor: 'orange' as const, icon: <Clock size={24} />, badge: "Phase de Recette", summary: "Les tickets dans cette phase subissent des tests de qualité avant livraison." },
+            { id: 'validation', title: "En cours de validation", keywords: ['validation', 'approbation'], color: 'text-emerald-600', bg: 'bg-emerald-500', themeColor: 'emerald' as const, icon: <Star size={24} />, summary: "Tickets en attente de la validation finale par les parties prenantes." },
+            { id: 'blocked', title: "Tickets Bloqués", keywords: ['bloq', 'attente'], color: 'text-rose-600', bg: 'bg-rose-500', themeColor: 'rose' as const, icon: <AlertCircle size={24} />, summary: "Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement." },
+            { id: 'open', title: "Tickets Ouverts", keywords: ['ouvert', 'nouveau'], color: 'text-orange-600', bg: 'bg-orange-500', themeColor: 'orange' as const, icon: <Plus size={24} />, summary: "Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge." },
+            { id: 'cancelled', title: "Tickets Annulés", keywords: ['annul', 'rejet', 'ignore'], color: 'text-rose-600', bg: 'bg-rose-500', themeColor: 'rose' as const, icon: <AlertCircle size={24} />, summary: "Tickets qui ont été annulés ou rejetés pour diverses raisons." },
+        ];
+
+        let remaining = [...allIssues];
+        const result = groupsConfig.map(group => {
+            const normalizedKeywords = group.keywords.map(normalize);
+            const matched = remaining.filter(issue => {
+                const statusName = normalize(issue.status.name);
+                return normalizedKeywords.some(kw => statusName.includes(kw));
+            });
+            const matchedIds = new Set(matched.map(m => m.id));
+            remaining = remaining.filter(issue => !matchedIds.has(issue.id));
+            return { ...group, issues: matched.sort((a, b) => b.id - a.id) };
+        });
+
+        return result;
+    }, [allIssues, topTypology]);
+
+    const groupedAnnexIssues = useMemo(() => groupedIssues.filter(g => g.issues.length > 0), [groupedIssues]);
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white">
@@ -640,125 +769,6 @@ export function Report() {
         );
     }
 
-    // Data processing
-    const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-    const statusCounts = allIssues.reduce((acc: Record<string, number>, issue) => {
-        const normName = normalize(issue.status.name);
-        acc[normName] = (acc[normName] || 0) + 1;
-        return acc;
-    }, {});
-
-    const getAggregatedStatusCount = (keywords: string[]) => {
-        const normalizedKeywords = keywords.map(normalize);
-        return Object.entries(statusCounts).reduce((total, [name, count]) => {
-            if (normalizedKeywords.some(kw => name.includes(kw))) {
-                return total + (count as number);
-            }
-            return total;
-        }, 0);
-    };
-
-    const totalInterventions = allIssues.length;
-
-    const statusData = Object.entries(statusCounts).map(([name, count]) => ({
-        name,
-        count: count as number,
-        color: name.includes('clot') || name.includes('resol') ? '#10b981' :
-            name.includes('pris') || name.includes('cours') ? '#3b82f6' :
-                name.includes('bloq') ? '#ef4444' : '#f97316'
-    }));
-
-    const priorityCounts = allIssues.reduce((acc: any, issue) => {
-        const name = issue.priority.name;
-        acc[name] = (acc[name] || 0) + 1;
-        return acc;
-    }, {});
-
-    const priorityData = Object.entries(priorityCounts).map(([name, count]) => {
-        const styles: Record<string, any> = {
-            'Critique': { time: '1h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
-            'Majeure': { time: '4h', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', bar: 'bg-orange-500' },
-            'Haute': { time: '4h', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', bar: 'bg-orange-500' },
-            'Normale': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
-            'Moyenne': { time: '8h', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', bar: 'bg-blue-500' },
-            'Mineure': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
-            'Basse': { time: '24h', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', bar: 'bg-emerald-500' },
-            'Urgent': { time: '2h', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', bar: 'bg-rose-500' },
-        };
-        const style = styles[name] || { time: '--', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100', bar: 'bg-slate-500' };
-        return {
-            label: name,
-            time: style.time,
-            count: count as number,
-            total: totalInterventions,
-            ...style
-        };
-    }).sort((a, b) => {
-        const order: Record<string, number> = { 'Critique': 0, 'Urgent': 1, 'Majeure': 2, 'Haute': 3, 'Normale': 4, 'Moyenne': 5, 'Haute ': 3, 'Normale ': 4, 'Mineure': 6, 'Basse': 7 };
-        return (order[a.label] ?? 99) - (order[b.label] ?? 99);
-    });
-
-    const typologyCounts = allIssues.reduce((acc: any, issue) => {
-        const name = issue.tracker.name;
-        acc[name] = (acc[name] || 0) + 1;
-        return acc;
-    }, {});
-
-    const typologyData = Object.entries(typologyCounts).map(([name, count]) => ({
-        name,
-        count: count as number,
-        color: trackerColorMap[name] || '#8b5cf6'
-    }));
-
-    const getTypologyByStatus = (statusKeywords: string[]) => {
-        const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const normalizedKeywords = statusKeywords.map(normalize);
-
-        const filtered = allIssues.filter(issue => {
-            const statusName = normalize(issue.status.name);
-            return normalizedKeywords.some(kw => statusName.includes(kw));
-        });
-
-        return filtered.reduce((acc: any, issue) => {
-            const name = issue.tracker.name;
-            acc[name] = (acc[name] || 0) + 1;
-            return acc;
-        }, {});
-    };
-
-    const closedTypology = getTypologyByStatus(['clot', 'resolu', 'ferm', 'termin']);
-    const inProgressTypology = getTypologyByStatus(['pris en charge', 'en cours']);
-
-    // Annex Data Processing
-    const getGroupedIssuesForAnnex = () => {
-        const groupsConfig = [
-            { title: "Tickets Clôturés", keywords: ['clot', 'resol', 'ferm', 'termin', 'clos'], color: 'text-emerald-600', bg: 'bg-emerald-500' },
-            { title: "Tickets Pris en charge", keywords: ['pris', 'cours'], color: 'text-blue-600', bg: 'bg-blue-500' },
-            { title: "En cours de traitement", keywords: ['traitement'], color: 'text-indigo-600', bg: 'bg-indigo-500' },
-            { title: "En cours de test", keywords: ['test', 'recette'], color: 'text-orange-600', bg: 'bg-orange-500' },
-            { title: "En cours de validation", keywords: ['validation', 'approbation'], color: 'text-emerald-600', bg: 'bg-emerald-500' },
-            { title: "Tickets Bloqués", keywords: ['bloq', 'attente'], color: 'text-rose-600', bg: 'bg-rose-500' },
-            { title: "Tickets Ouverts", keywords: ['ouvert', 'nouveau'], color: 'text-orange-600', bg: 'bg-orange-500' },
-            { title: "Tickets Annulés", keywords: ['annul', 'rejet', 'ignore'], color: 'text-rose-600', bg: 'bg-rose-500' },
-        ];
-
-        return groupsConfig.map(group => {
-            const normalizedKeywords = group.keywords.map(normalize);
-            const issues = allIssues.filter(issue => {
-                const statusName = normalize(issue.status.name);
-                return normalizedKeywords.some(kw => statusName.includes(kw));
-            }).sort((a, b) => b.id - a.id);
-            return { ...group, issues };
-        }).filter(group => group.issues.length > 0);
-    };
-
-    const groupedAnnexIssues = getGroupedIssuesForAnnex();
-    const processingTypology = getTypologyByStatus(['traitement']);
-    const blockedTypology = getTypologyByStatus(['bloq', 'attente']);
-    const openTypology = getTypologyByStatus(['ouvert', 'nouveau']);
-
-    const topTypology = Object.entries(typologyCounts).sort((a: any, b: any) => b[1] - a[1])[0];
 
     return (
         <div className="min-h-screen bg-white font-sans text-slate-900 p-8 md:p-12">
@@ -946,98 +956,7 @@ export function Report() {
                 {/* Dynamic Detail Blocks (Only if count > 0) */}
                 <div className="mt-8 space-y-8">
                     {(() => {
-                        interface DetailBlockConfig {
-                            id: string;
-                            title: string;
-                            count: number;
-                            typologyKeywords: string[];
-                            icon: React.ReactNode;
-                            themeColor: 'emerald' | 'blue' | 'rose' | 'orange' | 'indigo';
-                            summary: React.ReactNode;
-                            badge?: string;
-                        }
-
-                        const detailBlocks: DetailBlockConfig[] = [
-                            {
-                                id: 'closed',
-                                title: "Tickets Clôturés",
-                                count: getAggregatedStatusCount(['clot', 'resol', 'ferm', 'termin', 'clos']),
-                                typologyKeywords: ['clot', 'resol', 'ferm', 'termin', 'clos'],
-                                icon: <Plus size={24} />,
-                                themeColor: 'emerald',
-                                summary: topTypology ? (
-                                    <>Les activités de <strong>{topTypology[0]}</strong> représentent la majeure partie des interventions clôturées.</>
-                                ) : (
-                                    <>Aucune donnée d'intervention disponible.</>
-                                )
-                            },
-                            {
-                                id: 'in_progress',
-                                title: "Tickets Pris en charge",
-                                count: getAggregatedStatusCount(['pris', 'cours']),
-                                typologyKeywords: ['pris', 'cours'],
-                                icon: <Clock size={24} />,
-                                themeColor: 'blue',
-                                summary: "Le flux de travail est optimisé pour garantir une résolution rapide des tâches en cours."
-                            },
-                            {
-                                id: 'processing',
-                                title: "Tickets En cours de traitement",
-                                count: getAggregatedStatusCount(['traitement']),
-                                typologyKeywords: ['traitement'],
-                                icon: <Clock size={24} />,
-                                themeColor: 'indigo',
-                                summary: "Ces tickets sont actuellement en phase active de réalisation technique et nécessitent un suivi rapproché."
-                            },
-                            {
-                                id: 'blocked',
-                                title: "Tickets Bloqués",
-                                count: getAggregatedStatusCount(['bloq', 'attente']),
-                                typologyKeywords: ['bloq', 'attente'],
-                                icon: <AlertCircle size={24} />,
-                                themeColor: 'rose',
-                                summary: "Les tickets bloqués font l'objet d'une attention particulière pour lever les obstacles rapidement."
-                            },
-                            {
-                                id: 'testing',
-                                title: "En cours de test",
-                                count: getAggregatedStatusCount(['test', 'recette']),
-                                typologyKeywords: ['test', 'recette'],
-                                icon: <Clock size={24} />,
-                                themeColor: 'orange',
-                                badge: "Phase de Recette",
-                                summary: "Les tickets dans cette phase subissent des tests de qualité avant livraison."
-                            },
-                            {
-                                id: 'validation',
-                                title: "En cours de validation",
-                                count: getAggregatedStatusCount(['validation', 'approbation']),
-                                typologyKeywords: ['validation', 'approbation'],
-                                icon: <Star size={24} />,
-                                themeColor: 'emerald',
-                                summary: "Tickets en attente de la validation finale par les parties prenantes."
-                            },
-                            {
-                                id: 'open',
-                                title: "Tickets Ouverts",
-                                count: getAggregatedStatusCount(['ouvert', 'nouveau']),
-                                typologyKeywords: ['ouvert', 'nouveau'],
-                                icon: <Plus size={24} />,
-                                themeColor: 'orange',
-                                summary: "Les nouveaux tickets sont qualifiés par l'équipe avant d'être pris en charge."
-                            },
-                            {
-                                id: 'cancelled',
-                                title: "Tickets Annulés",
-                                count: getAggregatedStatusCount(['annul', 'rejet', 'ignore']),
-                                typologyKeywords: ['annul', 'rejet', 'ignore'],
-                                icon: <AlertCircle size={24} />,
-                                themeColor: 'rose',
-                                summary: "Tickets qui ont été annulés ou rejetés pour diverses raisons."
-                            }
-                        ];
-
-                        const visibleBlocks = detailBlocks.filter(b => b.count > 0);
+                        const visibleBlocks = groupedIssues.filter(b => b.issues.length > 0);
                         const pages = [];
                         for (let i = 0; i < visibleBlocks.length; i += 2) {
                             pages.push(visibleBlocks.slice(i, i + 2));
@@ -1049,19 +968,29 @@ export function Report() {
                                 id={`report-details-page-${pageIdx + 1}`}
                                 className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
                             >
-                                {pageBlocks.map(block => (
-                                    <StatusDetailCard
-                                        key={block.id}
-                                        title={block.title}
-                                        count={block.count}
-                                        typologyData={getTypologyByStatus(block.typologyKeywords)}
-                                        icon={block.icon}
-                                        themeColor={block.themeColor}
-                                        colorMap={trackerColorMap}
-                                        badge={block.badge}
-                                        summary={block.summary}
-                                    />
-                                ))}
+                                {pageBlocks.map(block => {
+                                    // Pre-calculate typology based only on the issues in this block
+                                    const blockTypology = block.issues.reduce((acc: any, issue) => {
+                                        const name = issue.tracker.name;
+                                        acc[name] = (acc[name] || 0) + 1;
+                                        return acc;
+                                    }, {});
+
+                                    return (
+                                        <StatusDetailCard
+                                            key={block.id}
+                                            title={block.title}
+                                            count={block.issues.length}
+                                            typologyData={blockTypology}
+                                            icon={block.icon}
+                                            themeColor={block.themeColor}
+                                            colorMap={trackerColorMap}
+                                            badge={block.badge}
+                                            summary={block.summary}
+                                        />
+                                    );
+                                })}
+
                                 {pageBlocks.length === 1 && (
                                     <div className="hidden md:flex items-center justify-center border-2 border-dashed border-slate-100 rounded-3xl p-8 opacity-20">
                                         <p className="text-slate-400 font-bold italic tracking-widest text-sm uppercase">Espace réservé</p>

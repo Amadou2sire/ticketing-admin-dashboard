@@ -46,7 +46,7 @@ Exportation du rapport d'activité en un clic dans plusieurs formats professionn
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate  # Sur Windows: .venv\Scripts\activate
+source .venv\Scripts\activate  # Sur Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
