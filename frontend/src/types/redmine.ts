@@ -1,3 +1,10 @@
+export interface RedmineJournal {
+    id: number;
+    user: { id: number; name: string };
+    notes: string;
+    created_on: string;
+}
+
 export interface RedmineIssue {
     id: number;
     subject: string;
@@ -9,4 +16,5 @@ export interface RedmineIssue {
     updated_on: string;
     due_date?: string;
     description?: string;
+    journals?: RedmineJournal[];
 }

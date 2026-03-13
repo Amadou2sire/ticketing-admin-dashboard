@@ -16,9 +16,12 @@ import {
     Share,
     Download,
     ChevronDown,
+    ChevronRight,
     FileText,
     File,
-    Presentation
+    Presentation,
+    MessageSquare,
+    History
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel, AlignmentType, PageOrientation, convertInchesToTwip, Table, TableRow, TableCell, WidthType } from 'docx';
@@ -67,6 +70,44 @@ export function Report() {
     };
 
     const [exporting, setExporting] = useState(false);
+    const [expandedIssues, setExpandedIssues] = useState<Set<number>>(new Set());
+    const [loadingIssues, setLoadingIssues] = useState<Set<number>>(new Set());
+
+    const toggleIssue = async (id: number) => {
+        const isCurrentlyExpanded = expandedIssues.has(id);
+        
+        if (!isCurrentlyExpanded) {
+            // Find the issue
+            const issue = allIssues.find(i => i.id === id);
+            // If journals are missing, fetch them
+            if (issue && (!issue.journals || issue.journals.length === 0)) {
+                setLoadingIssues(prev => new Set(prev).add(id));
+                try {
+                    const res = await fetch(`/api/redmine/tickets/${id}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setAllIssues(prev => prev.map(i => i.id === id ? data.issue : i));
+                    }
+                } catch (err) {
+                    console.error("Error fetching issue details:", err);
+                } finally {
+                    setLoadingIssues(prev => {
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                    });
+                }
+            }
+            
+            setExpandedIssues(prev => new Set(prev).add(id));
+        } else {
+            setExpandedIssues(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+    };
 
     const exportToPPT = async () => {
         if (!reportTicket) return;
@@ -1035,25 +1076,86 @@ export function Report() {
                                                 <th className="px-10 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Priorité</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {group.issues.map(issue => {
-                                                const prio = priorityData.find(p => p.label === issue.priority.name);
-                                                return (
-                                                    <tr key={issue.id} className="hover:bg-slate-50/50 transition-all duration-200 group text-sm">
-                                                        <td className="px-10 py-5 font-black text-slate-900 italic opacity-60">#{issue.id}</td>
-                                                        <td className="px-10 py-5">
-                                                            <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-slate-200" style={{ color: trackerColorMap[issue.tracker.name] || '#6366f1' }}>
-                                                                {issue.tracker.name}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-10 py-5 text-slate-700 font-semibold max-w-xl">
-                                                            <div className="line-clamp-2 break-words">{issue.subject}</div>
-                                                        </td>
-                                                        <td className="px-10 py-5 text-xs font-black uppercase">{issue.priority.name}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {group.issues.map(issue => {
+                                                                const prio = priorityData.find(p => p.label === issue.priority.name);
+                                                                const notes = issue.journals?.filter(j => j.notes && j.notes.trim().length > 0) || [];
+                                                                const isExpandable = (group.id === 'blocked' || group.id === 'processing' || group.id === 'in_progress');
+                                                                const isExpanded = expandedIssues.has(issue.id);
+                                                                const isIssueLoading = loadingIssues.has(issue.id);
+
+                                                                return (
+                                                                    <React.Fragment key={issue.id}>
+                                                                        <tr 
+                                                                            onClick={() => isExpandable && toggleIssue(issue.id)}
+                                                                            className={cn(
+                                                                                "transition-all duration-200 group text-sm",
+                                                                                isExpandable ? "cursor-pointer hover:bg-slate-50" : "hover:bg-slate-50/50",
+                                                                                isExpanded && "bg-blue-50/30"
+                                                                            )}
+                                                                        >
+                                                                            <td className="px-10 py-5 font-black text-slate-900 italic opacity-60">#{issue.id}</td>
+                                                                            <td className="px-10 py-5">
+                                                                                <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-slate-200" style={{ color: trackerColorMap[issue.tracker.name] || '#6366f1' }}>
+                                                                                    {issue.tracker.name}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-10 py-5 text-slate-700 font-semibold max-w-xl">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="line-clamp-2 break-words flex-1">{issue.subject}</div>
+                                                                                    {isExpandable && (
+                                                                                        <div className="flex items-center gap-1.5 text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full text-[10px] font-bold">
+                                                                                            {isIssueLoading ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />}
+                                                                                            {notes.length > 0 ? notes.length : ''}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-10 py-5">
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <span className="text-xs font-black uppercase">{issue.priority.name}</span>
+                                                                                    {isExpandable && (
+                                                                                        <ChevronDown 
+                                                                                            size={16} 
+                                                                                            className={cn("text-slate-400 transition-transform duration-300", isExpanded && "rotate-180 text-blue-500")} 
+                                                                                        />
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                        {isExpandable && isExpanded && (
+                                                                            <tr className="bg-slate-50/50">
+                                                                                <td colSpan={4} className="px-10 py-0 overflow-hidden">
+                                                                                    <div className="pb-8 pt-2 space-y-4 border-l-2 border-blue-200 ml-2 pl-6 my-2 animate-in slide-in-from-top-2 duration-300">
+                                                                                        <div className="flex items-center gap-2 text-blue-400 mb-4">
+                                                                                            <History size={14} />
+                                                                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Historique des échanges Redmine</span>
+                                                                                        </div>
+                                                                                        {notes.map((journal) => (
+                                                                                            <div key={journal.id} className="relative">
+                                                                                                <div className="absolute -left-[31px] top-1.5 w-3 h-3 rounded-full bg-white border-2 border-blue-300" />
+                                                                                                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                                                                                                    <div className="flex justify-between items-start mb-2">
+                                                                                                        <span className="text-xs font-black text-slate-900">{journal.user.name}</span>
+                                                                                                        <span className="text-[10px] font-bold text-slate-400">
+                                                                                                            {new Date(journal.created_on).toLocaleString('fr-FR', { 
+                                                                                                                day: '2-digit', month: '2-digit', year: 'numeric', 
+                                                                                                                hour: '2-digit', minute: '2-digit' 
+                                                                                                            })}
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{journal.notes}</p>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        )}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+                                                        </tbody>
                                     </table>
                                 </div>
                             </div>
